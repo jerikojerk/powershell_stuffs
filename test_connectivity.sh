@@ -1,4 +1,3 @@
-
 #!/bin/bash
 FILENAME=$1
 LOGFILE="log_connectivity.log"
@@ -8,12 +7,16 @@ DEFAULT_ACCESS='ALLOW'
 DEFAULT_SERVER='localhost'
 DEFAULT_PORT='123'
 
+KEYWORD_ALLOW='ALLOW'
+KEYWORD_DENY='DENY'
+KEYWORD_DONTCARE='DONTCARE'
+
 # Function to check for required commands
 check_commands() {
     local commands=("wget" "timeout" "ip" "sed" "hostname" "getent" "date")
     for cmd in "${commands[@]}"; do
         if ! command -v $cmd &> /dev/null; then
-            echo -e "ERROR\t$cmd is not installed." 1>&2 
+            echo -e "ERROR\t$cmd is not installed." 1>&2
             exit 1
         fi
     done
@@ -55,7 +58,7 @@ identify_arguments() {
                 with_proxy='N'
             elif [[ $value =~ ^[0-9]+$ ]]; then
                 #port number
-                mixed=$value 
+                mixed=$value
             elif [[ $value =~ ^(TCP|UDP|ICMP|HTTP|HTTPS)$ ]]; then
                 protocol=$value
             elif [[ $value =~ ^(ALLOW|DENY)$ ]]; then
@@ -93,10 +96,11 @@ wget_wrapper(){
     if [ 'N' = "$proxy" ] ; then
         $proxy_opt='--no-proxy'
     fi
-    
+
     timeout $((TIMEOUT_DURATION+1)) wget --spider --no-check-certificate -q $proxy_opt --timeout=$TIMEOUT_DURATION $url
     res=$?
-    
+
+
    case $res in
    0)
         ret_val=0
@@ -112,15 +116,15 @@ wget_wrapper(){
    3)
         echo -e "WARNING\tWget File I/O error #$res when connecting to $server."  | tee -a $LOGFILE 1>&2
         ret_val=1
-        ;;
+            ;;
    4)
         echo -e "WARNING\tWget Network failure #$res when connecting to $server."  | tee -a $LOGFILE 1>&2
         ret_val=1
-        ;;
+            ;;
    5)
         echo -e "WARNING\tWget SSL verification failure #$res when connecting to $server."  | tee -a $LOGFILE 1>&2
         ret_val=0
-        ;;
+            ;;
    6)
         echo -e "WARNING\tWget Username/password authentication failure #$res when connecting to $server."  | tee -a $LOGFILE 1>&2
         ret_val=0
@@ -155,7 +159,7 @@ summarize_url() {
     temp=${temp#":$port"}
     if [[ "$protocol" == "http" && "$port" == "80" ]] || [[ "$protocol" == "https" && "$port" == "443" ]]; then
         port=""
-    else 
+    else
         port=":$port"
     fi
     local query="$temp"
@@ -187,23 +191,25 @@ test_connectivity() {
         URL)
 
             message="Connection to $(summarize_url $mixed) (proxy=$proxy)"
-            wget_wrapper $server $mixed $proxy 
+            wget_wrapper $server $mixed $proxy
             ;;
         *)
-            echo -e "ERROR\tProtocol $protocol is not managed for $server"  | tee -a $LOGFILE 1>&2 
+            echo -e "ERROR\tProtocol $protocol is not managed for $server"  | tee -a $LOGFILE 1>&2
             return 1
             ;;
     esac
 
     if [ $? -eq 0 ]; then
-        actual_result="ALLOW"
+        actual_result=$KEYWORD_ALLOW
         textual_result="allowed"
     else
-        actual_result="DENY"
+        actual_result=$KEYWORD_DENY
         textual_result="denied"
     fi
 
-    if [ "$actual_result" == "$expected_result" ]; then
+	if [ "$KEYWORD_DONTCARE" == "$expected_result" ]; then 
+		echo -e "PASS\t$message is $textual_result" | tee -a $LOGFILE
+    elif [ "$actual_result" == "$expected_result" ]; then
         echo -e "PASS\t$message is $textual_result" | tee -a $LOGFILE
     else
         echo -e "FAILED\t$message is $textual_result (expected $expected_result)" | tee -a $LOGFILE
@@ -222,6 +228,7 @@ check_dns() {
 }
 
 
+
 # main function
 function main(){
     local line
@@ -231,17 +238,17 @@ function main(){
             echo "$line" | tee -a $LOGFILE
             continue
         fi
-        
+
         result=$(identify_arguments $line)
         IFS=' ' read -r access_control protocol server_name mixed proxy<<< "$result"
-        
+
         if ([ "$protocol" == "URL" ] && [ "$proxy" == "Y" ]) || check_dns "$server_name"; then
             test_connectivity "$access_control" "$protocol" "$server_name" "$mixed" "$proxy"
         else
             echo -e "WARNING\tSkipping $server_name due to DNS resolution failure" | tee -a $LOGFILE 1>&2
         fi
-   
-   done < "$FILENAME"   
+
+   done < "$FILENAME"
 }
 
 # script bootstrap
@@ -271,4 +278,3 @@ main
 stop_time=$(date +"%Y-%m-%d %H:%M:%S")
 echo "# Stopping tests at $stop_time" | tee -a $LOGFILE
 echo "# Find logs in $LOGFILE"
-
