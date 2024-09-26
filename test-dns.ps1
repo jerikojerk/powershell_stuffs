@@ -8,10 +8,11 @@ $urls=@(
 )
 
 
+
 $script:CACHE_DNS=@{}
 
 
-function resolve-domain( [string] $domain, [Array] $list = @() )
+function resolve-domain( [string] $domain, [Array] $list = @() ){
     $fix = $domain.ToLower().Trim()
     if ( $list -contains $fix ){
         Write-Information "# cutting infinite loop"
@@ -34,7 +35,7 @@ function resolve-domain( [string] $domain, [Array] $list = @() )
             }
         }
         foreach( $sub in $rec ){
-            if ( $x -is [Microsoft.DnsClient.Commands.DnsRecord] ) {
+            if ( $sub -is [Microsoft.DnsClient.Commands.DnsRecord] ) {
                 recurse-record $sub $listed
             }
         }#foreach
@@ -83,7 +84,7 @@ function recurse-record([Microsoft.DnsClient.Commands.DnsRecord] $rec , [Array] 
             print-DNS $rec $thread
         }
         Default {
-            Write-Output "# unamaged $($sub.Type) result for $fix"
+            Write-Output "# unamaged $($rec.Type) result for $fix"
         }
     }#switch
 }
@@ -109,5 +110,5 @@ function print-DNS([Microsoft.DnsClient.Commands.DnsRecord] $rec , [Array] $thre
 #| Sort-Object -Unique 
 $urls| ForEach-Object {
     Resolve-domain $_ 
-} | Out-File  $INI_OUTFILE 
-
+} 
+# $script:CACHE_DNS
